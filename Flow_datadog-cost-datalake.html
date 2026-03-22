@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevOps Flow — datadog-cost-datalake</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0F1117; --surface: #1A1D27; --surface2: #22263A; --border: #2A2F45;
+  --text: #E2E8F0; --muted: #64748B; --white: #FFFFFF;
+  --accent: #8B5CF6; --accent-light: #C4B5FD;
+  --step-ci: #38BDF8; --step-s3: #FF9900; --step-bronze: #CD7F32;
+  --step-silver: #94A3B8; --step-gold: #FBBF24; --step-obs: #A78BFA;
+  --step-gate: #FB923C; --step-tf: #7B42BC;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; min-height: 100vh; }
+body::before { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events: none; z-index: 0; }
+.page { position: relative; z-index: 1; max-width: 1480px; margin: 0 auto; padding: 48px 32px 80px; }
+
+.header { margin-bottom: 48px; }
+.header-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--accent-light); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.header-tag::before { content: ''; width: 32px; height: 2px; background: var(--accent); border-radius: 2px; }
+.header h1 { font-size: clamp(28px, 3.5vw, 46px); font-weight: 800; line-height: 1.1; color: var(--white); }
+.header h1 span { color: var(--accent-light); }
+.header p { color: var(--muted); font-size: 15px; margin-top: 8px; }
+.badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.badge { font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 4px 12px; border-radius: 6px; border: 1px solid; font-weight: 600; letter-spacing: 1px; }
+
+.legend { display: flex; gap: 20px; flex-wrap: wrap; padding: 14px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 36px; }
+.legend-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+.lanes { display: flex; flex-direction: column; gap: 4px; }
+.section-div { display: flex; align-items: center; gap: 16px; margin: 20px 0 6px 136px; }
+.section-div::before { content: ''; flex: 1; height: 1px; background: var(--border); }
+.section-div span { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; }
+.section-div::after { content: ''; width: 40px; height: 1px; background: var(--border); }
+.lane { display: flex; align-items: stretch; }
+.lane-label { width: 120px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 16px; }
+.lane-label span { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; text-align: right; }
+.lane-content { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 90px; padding: 10px 0 10px 16px; border-left: 2px solid var(--border); overflow-x: auto; }
+
+.step { position: relative; background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; padding: 14px 18px; min-width: 170px; max-width: 210px; flex-shrink: 0; transition: transform .15s, box-shadow .15s; cursor: default; }
+.step:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.45); z-index: 10; }
+.step::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--sc); border-radius: 12px 12px 0 0; }
+.step-num { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--sc); font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+.step-title { font-size: 13px; font-weight: 700; color: var(--white); margin-bottom: 6px; line-height: 1.3; }
+.step-items { list-style: none; }
+.step-items li { font-size: 10px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; padding-left: 10px; position: relative; margin-bottom: 3px; }
+.step-items li::before { content: '›'; position: absolute; left: 0; color: var(--sc); }
+.step[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1E293B; color: var(--text); font-size: 11px; padding: 8px 12px; border-radius: 8px; white-space: normal; max-width: 260px; font-family: 'IBM Plex Mono', monospace; z-index: 100; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); border: 1px solid var(--border); }
+
+.arr { flex-shrink: 0; font-size: 18px; color: var(--cc, var(--muted)); padding: 0 2px; }
+.gateway { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 2px solid var(--gc, var(--step-gate)); border-radius: 10px; padding: 10px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: var(--gc, var(--step-gate)); letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0; }
+
+.parallel-wrap { background: var(--surface2); border: 1.5px dashed var(--border); border-radius: 12px; padding: 16px 14px 14px; position: relative; display: flex; gap: 10px; flex: 1; flex-wrap: wrap; }
+.parallel-label { position: absolute; top: -10px; left: 16px; background: var(--surface2); padding: 0 8px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--step-ci); letter-spacing: 2px; }
+.parallel-wrap .step { flex: 1; min-width: 140px; max-width: none; }
+
+/* Medallion visual connector */
+.medallion-row { display: flex; align-items: center; gap: 0; flex: 1; }
+.medallion-row .step { flex: 1; max-width: none; }
+.medal-arr { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 6px; }
+.medal-arr span { font-size: 16px; }
+.medal-arr small { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--muted); }
+
+.metrics-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 36px; padding: 20px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.metric { flex: 1; min-width: 130px; }
+.metric-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+.metric-value { font-size: 24px; font-weight: 800; }
+.metric-sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: 'IBM Plex Mono', monospace; }
+
+.footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.footer span { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="header-tag">DevOps Deployment Flow</div>
+    <h1>📊 <span>datadog-cost-datalake</span></h1>
+    <p>Pipeline de observabilidade de custos: Datadog API → AWS S3 → Databricks Delta Lake</p>
+    <div class="badges">
+      <span class="badge" style="color:#C4B5FD;border-color:#8B5CF6;background:rgba(139,92,246,.1)">Datadog API</span>
+      <span class="badge" style="color:#FF9900;border-color:#FF9900;background:rgba(255,153,0,.1)">AWS S3</span>
+      <span class="badge" style="color:#FF3621;border-color:#FF3621;background:rgba(255,54,33,.1)">Databricks</span>
+      <span class="badge" style="color:#00ADD8;border-color:#00ADD8;background:rgba(0,173,216,.1)">Delta Lake</span>
+      <span class="badge" style="color:#7B42BC;border-color:#7B42BC;background:rgba(123,66,188,.1)">Terraform</span>
+      <span class="badge" style="color:#3776AB;border-color:#3776AB;background:rgba(55,118,171,.1)">Python 3.11</span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="legend-title">Legenda —</span>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-ci)"></div>CI / Validação</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-tf)"></div>IaC / Terraform</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Extração Datadog</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-s3)"></div>Carga S3</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-bronze)"></div>Bronze (raw)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-silver)"></div>Silver (clean)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-gold)"></div>Gold (dashboard)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-obs)"></div>Visualizações</div>
+  </div>
+
+  <div class="lanes">
+
+    <!-- ① CI -->
+    <div class="section-div"><span>① CI — Validação de Código e Infraestrutura</span></div>
+
+    <div class="lane">
+      <div class="lane-label"><span>CI Pipeline</span></div>
+      <div class="lane-content">
+        <div class="step" style="--sc:var(--step-ci)" data-tip="Testes unitários com mocks da API Datadog — sem custo real de chamadas. mypy --strict garante type safety. Gitleaks impede DD_API_KEY ou AWS secrets no histórico.">
+          <div class="step-num">01 · CI</div>
+          <div class="step-title">Testes & Lint</div>
+          <ul class="step-items">
+            <li>pytest + mocks Datadog</li>
+            <li>mypy --strict</li>
+            <li>Gitleaks secrets scan</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-ci)">→</div>
+        <div class="step" style="--sc:var(--step-tf)" data-tip="terraform validate verifica sintaxe dos módulos. tflint detecta boas práticas. Checkov garante que o bucket S3 tem criptografia, bloqueio de acesso público e lifecycle configurados.">
+          <div class="step-num">02 · IaC VALIDATE</div>
+          <div class="step-title">Terraform Check</div>
+          <ul class="step-items">
+            <li>terraform validate</li>
+            <li>tflint + Checkov</li>
+            <li>Plan review</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-gate)">→</div>
+        <div class="gateway" style="--gc:var(--step-gate)">🔷 QUALITY GATE</div>
+      </div>
+    </div>
+
+    <!-- ② INFRA -->
+    <div class="section-div"><span>② Provisionamento de Infraestrutura (única vez)</span></div>
+
+    <div class="lane">
+      <div class="lane-label"><span>Infra</span></div>
+      <div class="lane-content">
+        <div class="step" style="--sc:var(--step-tf)" data-tip="Bucket S3 com criptografia AES256 server-side, versionamento ativo, bloqueio total de acesso público e lifecycle: move para Standard-IA após 90 dias e Glacier após 1 ano.">
+          <div class="step-num">03 · S3 BUCKET</div>
+          <div class="step-title">Terraform Apply</div>
+          <ul class="step-items">
+            <li>Bucket S3 + SSE-AES256</li>
+            <li>Lifecycle → Glacier 1yr</li>
+            <li>Block public access</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-tf)">→</div>
+        <div class="step" style="--sc:var(--step-tf)" data-tip="Dois IAM separados pelo princípio de menor privilégio: pipeline extractor (só PutObject no prefixo raw/) e IAM Role para Databricks (GetObject + PutObject em todo o bucket delta/).">
+          <div class="step-num">04 · IAM ROLES</div>
+          <div class="step-title">Identidades</div>
+          <ul class="step-items">
+            <li>Role: extractor (write)</li>
+            <li>Role: Databricks (rw)</li>
+            <li>PoLP aplicado</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-tf)">→</div>
+        <div class="step" style="--sc:var(--step-tf)" data-tip="Outputs do Terraform: nome do bucket, ARNs das roles e Access Key ID/Secret do extractor para configurar no .env ou GitHub Secrets.">
+          <div class="step-num">05 · OUTPUTS</div>
+          <div class="step-title">Terraform Outputs</div>
+          <ul class="step-items">
+            <li>S3 bucket name</li>
+            <li>IAM Role ARNs</li>
+            <li>Access Keys geradas</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ EXTRAÇÃO -->
+    <div class="section-div"><span>③ Extração Datadog → S3 (Pipeline Python — Diário)</span></div>
+
+    <div class="lane">
+      <div class="lane-label"><span>Extração</span></div>
+      <div class="lane-content">
+        <div class="step" style="--sc:var(--accent)" data-tip="GitHub Actions com cron diário (06h UTC). Autentica com IAM Role — sem Access Key em disco. Roda: python loader/pipeline.py --days 1 --product all">
+          <div class="step-num">06 · TRIGGER</div>
+          <div class="step-title">Scheduled Job</div>
+          <ul class="step-items">
+            <li>GitHub Actions cron</li>
+            <li>IAM Role (sem chave)</li>
+            <li>--days 1 --product all</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--accent)">→</div>
+        <div class="parallel-wrap">
+          <span class="parallel-label">⟳ paralelo — por produto Datadog</span>
+          <div class="step" style="--sc:var(--accent)" data-tip="Coleta hosts faturáveis por tipo (AWS, Azure, GCP, Agent) via Usage API v1. Retry automático com backoff exponencial em caso de rate limit (429).">
+            <div class="step-num">07a · INFRA</div>
+            <div class="step-title">Infrastructure</div>
+            <ul class="step-items"><li>Usage API v1</li><li>Hosts por cloud</li></ul>
+          </div>
+          <div class="step" style="--sc:var(--accent)" data-tip="Coleta APM hosts rastreados e spans indexados via Trace Summary API. Dados de serviços instrumentados no Datadog.">
+            <div class="step-num">07b · APM</div>
+            <div class="step-title">APM Usage</div>
+            <ul class="step-items"><li>Trace Summary API</li><li>Spans indexados</li></ul>
+          </div>
+          <div class="step" style="--sc:var(--accent)" data-tip="Coleta volume de logs ingeridos (bytes) e eventos indexados via Logs Usage API. Dados granulares por hora.">
+            <div class="step-num">07c · LOGS</div>
+            <div class="step-title">Logs Volume</div>
+            <ul class="step-items"><li>Logs Usage API</li><li>Bytes + events</li></ul>
+          </div>
+          <div class="step" style="--sc:var(--accent)" data-tip="Coleta custo estimado em USD por produto Datadog via Cost Attribution API v2. Dados mensais de charges por tipo (committed, on_demand).">
+            <div class="step-num">07d · COST</div>
+            <div class="step-title">Estimated Cost</div>
+            <ul class="step-items"><li>Cost API v2</li><li>USD por produto</li></ul>
+          </div>
+        </div>
+        <div class="arr" style="--cc:var(--step-s3)">→</div>
+        <div class="step" style="--sc:var(--step-s3)" data-tip="Converte registros para DataFrame Pandas, serializa em Parquet com compressão Snappy e faz upload particionado: s3://bucket/datadog-costs/raw/product=X/year=Y/month=M/day=D/">
+          <div class="step-num">08 · S3 LOADER</div>
+          <div class="step-title">Upload S3</div>
+          <ul class="step-items">
+            <li>Parquet + Snappy</li>
+            <li>Partição: product/date</li>
+            <li>Metadados no S3</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ DATABRICKS MEDALLION -->
+    <div class="section-div"><span>④ Databricks — Arquitetura Medallion (Bronze → Silver → Gold)</span></div>
+
+    <div class="lane">
+      <div class="lane-label"><span>Databricks</span></div>
+      <div class="lane-content">
+        <div class="medallion-row">
+          <div class="step" style="--sc:var(--step-bronze)" data-tip="01_bronze_ingest.py: Auto Loader (cloudFiles) detecta novos Parquets no S3 incrementalmente, sem reprocessar arquivos já lidos. Normaliza campos e grava na tabela Bronze com partição por product/date.">
+            <div class="step-num">09 · BRONZE</div>
+            <div class="step-title">🥉 Auto Loader</div>
+            <ul class="step-items">
+              <li>cloudFiles format</li>
+              <li>Schema inference</li>
+              <li>Append incremental</li>
+            </ul>
+          </div>
+          <div class="medal-arr"><span style="color:var(--step-bronze)">→</span><small>RAW</small></div>
+          <div class="step" style="--sc:var(--step-silver)" data-tip="02_silver_transform.py: tipagem de datas, normalização (bytes→GB, hosts→K hosts), campos derivados (year, month, week, day_of_week) e Delta MERGE para upsert sem duplicatas.">
+            <div class="step-num">10 · SILVER</div>
+            <div class="step-title">🥈 Transform</div>
+            <ul class="step-items">
+              <li>Tipagem + normalização</li>
+              <li>Campos derivados</li>
+              <li>Delta MERGE (upsert)</li>
+            </ul>
+          </div>
+          <div class="medal-arr"><span style="color:var(--step-silver)">→</span><small>CLEAN</small></div>
+          <div class="step" style="--sc:var(--step-gold)" data-tip="03_gold_dashboard.py: gera 4 tabelas Gold otimizadas — daily_summary, product_trend (com MoM), top_hosts por cloud e anomalias detectadas via Z-Score > 2 desvios padrão.">
+            <div class="step-num">11 · GOLD</div>
+            <div class="step-title">🥇 Agregações</div>
+            <ul class="step-items">
+              <li>4 tabelas Gold</li>
+              <li>Trend MoM</li>
+              <li>Z-Score anomalias</li>
+            </ul>
+          </div>
+          <div class="medal-arr"><span style="color:var(--step-gold)">→</span><small>AGG</small></div>
+          <div class="step" style="--sc:var(--step-obs)" data-tip="4 visualizações nativas Databricks: custo mensal por produto (bar chart stacked), variação MoM, distribuição de hosts por cloud provider (area chart) e tabela de anomalias com Z-Score.">
+            <div class="step-num">12 · DASHBOARD</div>
+            <div class="step-title">📈 Visualizações</div>
+            <ul class="step-items">
+              <li>Custo por produto</li>
+              <li>Hosts por cloud</li>
+              <li>Anomalias Z-Score</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="metrics-bar">
+    <div class="metric">
+      <div class="metric-label">Frequência</div>
+      <div class="metric-value" style="color:var(--accent-light)">Diária</div>
+      <div class="metric-sub">Job Databricks — 06h UTC</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Latência</div>
+      <div class="metric-value" style="color:var(--step-s3)">~15 min</div>
+      <div class="metric-sub">Extração → dado no Gold</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Produtos Datadog</div>
+      <div class="metric-value" style="color:var(--accent)">4</div>
+      <div class="metric-sub">Infra · APM · Logs · Cost</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Tabelas Delta</div>
+      <div class="metric-value" style="color:var(--step-gold)">6</div>
+      <div class="metric-sub">Bronze + Silver + 4× Gold</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Detecção Anomalia</div>
+      <div class="metric-value" style="color:#10b981">Z &gt; 2σ</div>
+      <div class="metric-sub">Automática via Z-Score</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Retenção S3</div>
+      <div class="metric-value" style="color:var(--step-tf)">1 ano</div>
+      <div class="metric-sub">Glacier após 365 dias</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>datadog-cost-datalake · v1.0</span>
+    <span>Ivonaldo Micheluti Dias · Cloud & FinOps Engineer</span>
+    <span>github.com/ivonaldomdias/datadog-cost-datalake</span>
+  </div>
+
+</div>
+</body>
+</html>
